@@ -153,12 +153,11 @@ jobs:
           free-disk-space: true
           build-tests: true
           run-tests: true
+          # NOTE: build flags only. swift-test-flags is NOT a build input —
+          # the action appends it verbatim to the test-runner invocation on
+          # the emulator (for options like --filter), and the runner rejects
+          # compiler/linker flags as "Invalid option".
           swift-build-flags: >-
-            -Xcc -I/tmp/libxml2-headers/usr/include/libxml2
-            -Xlinker -L/home/runner/.config/swiftpm/swift-sdks/swift-6.3.2-RELEASE_android.artifactbundle/swift-android/swift-resources/usr/lib/swift_static-x86_64/android
-            -Xlinker -lxml2
-            -Xlinker -lz
-          swift-test-flags: >-
             -Xcc -I/tmp/libxml2-headers/usr/include/libxml2
             -Xlinker -L/home/runner/.config/swiftpm/swift-sdks/swift-6.3.2-RELEASE_android.artifactbundle/swift-android/swift-resources/usr/lib/swift_static-x86_64/android
             -Xlinker -lxml2
