@@ -113,21 +113,37 @@ jobs:
           swift test -v -Xcc "-I$vcpkg\include\libxml2" -Xcc "-I$vcpkg\include" -Xlinker "-libpath:$vcpkg\lib"
 
   build-android:
-    # The Swift Android SDK bundles libxml2 (it ships it for FoundationXML,
-    # from Termux packages), so the cross-compile links the sysroot copy.
-    # The trap is the HOST: the ubuntu runner has libxml2-dev preinstalled,
-    # and CLibXML2's pkg-config lookup happily serves /usr/include/libxml2
-    # — ICU-enabled host headers that the Android sysroot can't satisfy
-    # ('unicode/ucnv.h' not found). Pointing PKG_CONFIG_LIBDIR at an empty
-    # directory blinds host pkg-config so the sysroot's libxml2 wins.
+    # The official Swift Android SDK bundles a full libxml2.a (2.12.7, built
+    # ICU/iconv-free for FoundationXML — verified: HTMLparser.c.o with
+    # htmlParseChunk et al. is in the archive) but ships NO libxml2
+    # development headers. Worse, the Ubuntu host's libxml2-dev headers are
+    # ICU-enabled and leak into the cross-compile via SwiftPM's built-in
+    # pkg-config parser (which ignores PKG_CONFIG_LIBDIR and searches
+    # hardcoded host paths) — hence 'unicode/ucnv.h' file not found.
+    #
+    # Fix, within the system-library approach:
+    #   1. delete the host's libxml2 dev files so pkg-config finds nothing,
+    #   2. provide Debian's ICU-free libxml2 headers (trixie; the
+    #      "+really2.9.14" content is the same 2.9-era API this bridge
+    #      already builds against on Apple SDKs and Ubuntu jammy; libxml2
+    #      kept .so.2 ABI compatibility through 2.12, so the declarations
+    #      are valid against the SDK's 2.12.7 archive),
+    #   3. link the SDK's own libxml2.a, plus -lz (its .pc requires zlib;
+    #      libz is an NDK stable library).
+    # The -L path is tied to swift-version below — bump them together.
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      PKG_CONFIG_LIBDIR: /tmp/empty-pkgconfig
     steps:
       - uses: actions/checkout@v6
-      - name: Blind host pkg-config (empty PKG_CONFIG_LIBDIR)
-        run: mkdir -p /tmp/empty-pkgconfig
+      - name: Remove host libxml2 dev files (poison the cross-compile)
+        run: |
+          sudo rm -rf /usr/include/libxml2
+          sudo find /usr/lib /usr/share -name 'libxml-2.0.pc' -delete 2>/dev/null || true
+      - name: Install Debian ICU-free libxml2 headers
+        run: |
+          curl -sLo /tmp/libxml2-dev.deb "http://deb.debian.org/debian/pool/main/libx/libxml2/libxml2-dev_2.12.7+dfsg+really2.9.14-2.1+deb13u2_amd64.deb"
+          dpkg-deb -x /tmp/libxml2-dev.deb /tmp/libxml2-headers
+          test -f /tmp/libxml2-headers/usr/include/libxml2/libxml/HTMLparser.h
       - name: Build & test (Android)
         uses: skiptools/swift-android-action@v2
         with:
@@ -137,3 +153,11 @@ jobs:
           free-disk-space: true
           build-tests: true
           run-tests: true
+          swift-build-flags: >-
+            -Xcc -I/tmp/libxml2-headers/usr/include/libxml2
+            -Xlinker -L/home/runner/.config/swiftpm/swift-sdks/swift-6.3.2-RELEASE_android.artifactbundle/swift-android/swift-resources/usr/lib/swift_static-x86_64/android
+            -Xlinker -lz
+          swift-test-flags: >-
+            -Xcc -I/tmp/libxml2-headers/usr/include/libxml2
+            -Xlinker -L/home/runner/.config/swiftpm/swift-sdks/swift-6.3.2-RELEASE_android.artifactbundle/swift-android/swift-resources/usr/lib/swift_static-x86_64/android
+            -Xlinker -lz
