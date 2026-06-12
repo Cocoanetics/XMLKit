@@ -41,9 +41,21 @@ then add the product to your target:
 
 ## Platforms
 
-- macOS 12+, iOS 13+, tvOS 13+, watchOS 6+ (libxml2 ships with the OS SDKs)
-- Linux — install `libxml2-dev` and `pkg-config`
-- Windows — libxml2 via vcpkg (manifest support present, not covered by CI)
+CI builds and runs the test suite on macOS, iOS Simulator, Linux, Windows and Android on every push.
+
+- **macOS 12+, iOS 13+, tvOS 13+, watchOS 6+** — libxml2 ships with the OS SDKs, nothing to install.
+- **Linux** — install `libxml2-dev` and `pkg-config`.
+- **Windows** — install libxml2 via vcpkg, then pass its paths per invocation (do *not* export `INCLUDE`/`LIB` — that suppresses the toolchain's MSVC auto-detection):
+
+  ```powershell
+  vcpkg install libxml2:x64-windows
+  swift build -Xcc -IC:\vcpkg\installed\x64-windows\include\libxml2 `
+              -Xcc -IC:\vcpkg\installed\x64-windows\include `
+              -Xlinker -libpath:C:\vcpkg\installed\x64-windows\lib
+  ```
+
+  `C:\vcpkg\installed\x64-windows\bin` must be on `PATH` at runtime so `libxml2.dll` loads.
+- **Android** — the official Swift Android SDK bundles a full `libxml2.a` (HTML parser included) but no development headers. The `build-android` job in [swift.yml](.github/workflows/swift.yml) shows the working recipe: remove the host's libxml2 dev files, extract Debian's ICU-free libxml2 headers, and link the SDK's own archive with `-lxml2 -lz`.
 
 ## Heritage
 
