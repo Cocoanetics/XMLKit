@@ -58,10 +58,10 @@ jobs:
       - name: Build for iOS Simulator
         run: |
           xcodebuild build \
-            -scheme XMLKit-Package \
+            -scheme XMLKit \
             -destination "generic/platform=iOS Simulator"
       - name: Test on iOS Simulator
         run: |
           xcodebuild test \
-            -scheme XMLKit-Package \
+            -scheme XMLKit \
             -destination "platform=iOS Simulator,name=iPhone 17,OS=latest"
