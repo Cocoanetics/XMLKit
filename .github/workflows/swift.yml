@@ -61,10 +61,15 @@ jobs:
             -scheme XMLKit \
             -destination "generic/platform=iOS Simulator"
       - name: Test on iOS Simulator
+        # Pick whatever iPhone simulator the runner image actually has —
+        # hardcoded model names (e.g. "iPhone 17") vary across the
+        # macos-latest image pool and intermittently don't exist.
         run: |
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [^(]+' | head -1 | xargs)
+          echo "Using simulator: $DEVICE"
           xcodebuild test \
             -scheme XMLKit \
-            -destination "platform=iOS Simulator,name=iPhone 17,OS=latest"
+            -destination "platform=iOS Simulator,name=$DEVICE"
 
   build-windows:
     # The whole package is a libxml2 wrapper, so unlike SwiftText there is
@@ -85,31 +90,41 @@ jobs:
         run: swift --version
       - name: Install libxml2 (vcpkg)
         run: vcpkg install libxml2:x64-windows
-      - name: Expose vcpkg libxml2 via INCLUDE/LIB/PATH
+      - name: Add vcpkg DLL directory to PATH for the test runner
+        shell: pwsh
+        run: Add-Content $env:GITHUB_PATH "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin"
+      # vcpkg paths go in as per-invocation flags, NOT via the INCLUDE/LIB
+      # environment: setting LIB at all suppresses the Swift toolchain's own
+      # MSVC runtime auto-detection, and even manifest compilation then dies
+      # with "could not open 'msvcrt.lib'".
+      - name: Build (Windows)
         shell: pwsh
         run: |
           $vcpkg = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\x64-windows"
-          Add-Content $env:GITHUB_ENV "INCLUDE=$vcpkg\include;$env:INCLUDE"
-          Add-Content $env:GITHUB_ENV "LIB=$vcpkg\lib;$env:LIB"
-          Add-Content $env:GITHUB_PATH "$vcpkg\bin"
-      - name: Build (Windows)
-        shell: pwsh
-        run: swift build -v
+          swift build -v -Xcc "-I$vcpkg\include" -Xlinker "-libpath:$vcpkg\lib"
       - name: Test (Windows)
         shell: pwsh
         timeout-minutes: 15
-        run: swift test -v
+        run: |
+          $vcpkg = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\x64-windows"
+          swift test -v -Xcc "-I$vcpkg\include" -Xlinker "-libpath:$vcpkg\lib"
 
   build-android:
-    # The Swift Android SDK bundles libxml2 (FoundationXML links it), and
-    # the C bridge's __has_include fallback chain picks the sysroot's
-    # <libxml2/libxml/HTMLparser.h> layout when pkg-config (a host-Linux
-    # concept) has nothing to offer. skiptools builds with --build-tests
-    # and runs the suite in an x86_64 emulator.
+    # The Swift Android SDK bundles libxml2 (it ships it for FoundationXML,
+    # from Termux packages), so the cross-compile links the sysroot copy.
+    # The trap is the HOST: the ubuntu runner has libxml2-dev preinstalled,
+    # and CLibXML2's pkg-config lookup happily serves /usr/include/libxml2
+    # — ICU-enabled host headers that the Android sysroot can't satisfy
+    # ('unicode/ucnv.h' not found). Pointing PKG_CONFIG_LIBDIR at an empty
+    # directory blinds host pkg-config so the sysroot's libxml2 wins.
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      PKG_CONFIG_LIBDIR: /tmp/empty-pkgconfig
     steps:
       - uses: actions/checkout@v6
+      - name: Blind host pkg-config (empty PKG_CONFIG_LIBDIR)
+        run: mkdir -p /tmp/empty-pkgconfig
       - name: Build & test (Android)
         uses: skiptools/swift-android-action@v2
         with:
