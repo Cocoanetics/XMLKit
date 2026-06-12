@@ -1,0 +1,37 @@
+included:
+  - Sources
+  - Tests
+
+excluded:
+  - .build
+  - .swiftpm
+
+# The codebase uses Allman-style braces (opening brace on its own line),
+# inherited from the DTHTMLParser lineage — the opposite of what this
+# rule enforces.
+disabled_rules:
+  - opening_brace
+
+# Match Xcode's default "Indent switch statement case labels" setting —
+# cases sit one level past the switch keyword.
+switch_case_alignment:
+  indented_cases: true
+
+identifier_name:
+  excluded:
+    # `i` walks libxml2's flat key/value attribute array in makeCallbacks().
+    - i
+    - id
+
+line_length:
+  ignores_comments: true
+  ignores_urls: true
+
+# makeCallbacks() assembles the libxml2 SAX callback struct: nine C function
+# pointer closures in one linear initializer. Splitting it would scatter the
+# SAX surface across helpers without making anything clearer. Thresholds are
+# sized to that one function — still strict enough to flag new growth.
+cyclomatic_complexity:
+  warning: 25
+function_body_length:
+  warning: 100

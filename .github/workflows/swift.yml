@@ -65,3 +65,57 @@ jobs:
           xcodebuild test \
             -scheme XMLKit \
             -destination "platform=iOS Simulator,name=iPhone 17,OS=latest"
+
+  build-windows:
+    # The whole package is a libxml2 wrapper, so unlike SwiftText there is
+    # no libxml2-free subset to scope to — the library itself comes from
+    # vcpkg. The manifest's Windows branch links "libxml2" and finds
+    # headers/libs via the MSVC INCLUDE/LIB environment, which is exactly
+    # what vcpkg's installed tree provides; the DLL directory goes on PATH
+    # so the test runner can load libxml2 at runtime.
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Swift
+        uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: "6.3.1"
+      - name: Verify Swift version
+        run: swift --version
+      - name: Install libxml2 (vcpkg)
+        run: vcpkg install libxml2:x64-windows
+      - name: Expose vcpkg libxml2 via INCLUDE/LIB/PATH
+        shell: pwsh
+        run: |
+          $vcpkg = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\x64-windows"
+          Add-Content $env:GITHUB_ENV "INCLUDE=$vcpkg\include;$env:INCLUDE"
+          Add-Content $env:GITHUB_ENV "LIB=$vcpkg\lib;$env:LIB"
+          Add-Content $env:GITHUB_PATH "$vcpkg\bin"
+      - name: Build (Windows)
+        shell: pwsh
+        run: swift build -v
+      - name: Test (Windows)
+        shell: pwsh
+        timeout-minutes: 15
+        run: swift test -v
+
+  build-android:
+    # The Swift Android SDK bundles libxml2 (FoundationXML links it), and
+    # the C bridge's __has_include fallback chain picks the sysroot's
+    # <libxml2/libxml/HTMLparser.h> layout when pkg-config (a host-Linux
+    # concept) has nothing to offer. skiptools builds with --build-tests
+    # and runs the suite in an x86_64 emulator.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build & test (Android)
+        uses: skiptools/swift-android-action@v2
+        with:
+          # Full patch version so host toolchain and Android SDK tarballs
+          # match (skiptools guidance — a floating "6.3" key drifts them).
+          swift-version: "6.3.2"
+          free-disk-space: true
+          build-tests: true
+          run-tests: true

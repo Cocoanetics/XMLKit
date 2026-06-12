@@ -33,7 +33,11 @@ public class HTMLParser: @unchecked Sendable
 	private var parserError: HTMLParserError?
 	var lastParseSucceeded = false
 
-	public init(data: Data, encoding: String.Encoding, options: HTMLParserOptions = [.recover, .noNet, .compact, .noBlanks])
+	public init(
+		data: Data,
+		encoding: String.Encoding,
+		options: HTMLParserOptions = [.recover, .noNet, .compact, .noBlanks]
+	)
 	{
 		self.data = data
 		self.encoding = encoding

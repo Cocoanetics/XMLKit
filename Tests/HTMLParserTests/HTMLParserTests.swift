@@ -5,7 +5,10 @@ import HTMLParser
 @Suite("HTMLParser")
 struct HTMLParserTests
 {
-	private func collectEvents(parsing html: String, options: HTMLParserOptions = [.recover, .noNet, .compact, .noBlanks]) async -> [HTMLParserEvent]
+	private func collectEvents(
+		parsing html: String,
+		options: HTMLParserOptions = [.recover, .noNet, .compact, .noBlanks]
+	) async -> [HTMLParserEvent]
 	{
 		let parser = HTMLParser(data: Data(html.utf8), encoding: .utf8, options: options)
 		var events = [HTMLParserEvent]()
