@@ -96,18 +96,21 @@ jobs:
       # vcpkg paths go in as per-invocation flags, NOT via the INCLUDE/LIB
       # environment: setting LIB at all suppresses the Swift toolchain's own
       # MSVC runtime auto-detection, and even manifest compilation then dies
-      # with "could not open 'msvcrt.lib'".
+      # with "could not open 'msvcrt.lib'". Both include levels are needed
+      # (same dual -I as rhx/SwiftLibXML): vcpkg nests headers under
+      # include\libxml2\libxml, and libxml2 headers include their siblings
+      # as <libxml/...>, so the deeper path must be searchable too.
       - name: Build (Windows)
         shell: pwsh
         run: |
           $vcpkg = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\x64-windows"
-          swift build -v -Xcc "-I$vcpkg\include" -Xlinker "-libpath:$vcpkg\lib"
+          swift build -v -Xcc "-I$vcpkg\include\libxml2" -Xcc "-I$vcpkg\include" -Xlinker "-libpath:$vcpkg\lib"
       - name: Test (Windows)
         shell: pwsh
         timeout-minutes: 15
         run: |
           $vcpkg = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\x64-windows"
-          swift test -v -Xcc "-I$vcpkg\include" -Xlinker "-libpath:$vcpkg\lib"
+          swift test -v -Xcc "-I$vcpkg\include\libxml2" -Xcc "-I$vcpkg\include" -Xlinker "-libpath:$vcpkg\lib"
 
   build-android:
     # The Swift Android SDK bundles libxml2 (it ships it for FoundationXML,
